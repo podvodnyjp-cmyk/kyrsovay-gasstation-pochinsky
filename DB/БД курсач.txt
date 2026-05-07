@@ -1,0 +1,320 @@
+-- ============================================
+-- 🗄️ СОЗДАНИЕ БАЗЫ ДАННЫХ И ТАБЛИЦ
+-- ============================================
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'Refill2')
+BEGIN
+    CREATE DATABASE Refill2;
+END
+GO
+
+USE Refill2;
+GO
+
+-- Если таблицы уже есть — удаляем их (в правильном порядке)
+IF OBJECT_ID('DeliveryProduct', 'U') IS NOT NULL DROP TABLE DeliveryProduct;
+IF OBJECT_ID('ReceiptProduct', 'U') IS NOT NULL DROP TABLE ReceiptProduct;
+IF OBJECT_ID('ReceiptFuel', 'U') IS NOT NULL DROP TABLE ReceiptFuel;
+IF OBJECT_ID('Receipt', 'U') IS NOT NULL DROP TABLE Receipt;
+IF OBJECT_ID('Delivery', 'U') IS NOT NULL DROP TABLE Delivery;
+IF OBJECT_ID('FuelTap', 'U') IS NOT NULL DROP TABLE FuelTap;
+IF OBJECT_ID('FuelPump', 'U') IS NOT NULL DROP TABLE FuelPump;
+IF OBJECT_ID('Worker', 'U') IS NOT NULL DROP TABLE Worker;
+IF OBJECT_ID('CashRegister', 'U') IS NOT NULL DROP TABLE CashRegister;
+IF OBJECT_ID('Product', 'U') IS NOT NULL DROP TABLE Product;
+IF OBJECT_ID('Cistern', 'U') IS NOT NULL DROP TABLE Cistern;
+IF OBJECT_ID('Fuel', 'U') IS NOT NULL DROP TABLE Fuel;
+IF OBJECT_ID('GasStation', 'U') IS NOT NULL DROP TABLE GasStation;
+IF OBJECT_ID('Category', 'U') IS NOT NULL DROP TABLE Category;
+IF OBJECT_ID('UnitOfMeasure', 'U') IS NOT NULL DROP TABLE UnitOfMeasure;
+IF OBJECT_ID('Role', 'U') IS NOT NULL DROP TABLE [Role];
+IF OBJECT_ID('FuelType', 'U') IS NOT NULL DROP TABLE FuelType;
+GO
+
+-- 1. Тип Топлива
+CREATE TABLE FuelType (
+    FuelType_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(100) NOT NULL
+);
+
+-- 2. Топливо
+CREATE TABLE Fuel (
+    Fuel_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(100) NOT NULL,
+    FuelType_Id INT REFERENCES FuelType(FuelType_Id),
+    Octane_Number NVARCHAR(5),
+    Manufacturer NVARCHAR(100)
+);
+
+-- 3. Единица измерения
+CREATE TABLE UnitOfMeasure (
+    Unit_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(50) NOT NULL
+);
+
+-- 4. Категория
+CREATE TABLE Category (
+    Category_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(100) NOT NULL
+);
+
+-- 5. АЗС
+CREATE TABLE GasStation (
+    GasStation_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(100) NOT NULL,
+    Address NVARCHAR(200),
+    Phone NVARCHAR(25)
+);
+
+-- 6. Цистерна (1:1 к Топливо)
+CREATE TABLE Cistern (
+    Cistern_Id INT PRIMARY KEY IDENTITY,
+    Total_Volume_Liters INT NOT NULL,
+    Current_Level_Liters INT NOT NULL,
+    Fuel_Id INT UNIQUE REFERENCES Fuel(Fuel_Id)
+);
+
+-- 7. Товар
+-- ⚠️ ВАЖНО: Убираем UNIQUE с GasStation_Id, иначе 1 АЗС = 1 товар!
+CREATE TABLE Product (
+    Product_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(100) NOT NULL,
+    Unit_Id INT REFERENCES UnitOfMeasure(Unit_Id),
+    Category_Id INT REFERENCES Category(Category_Id),
+    GasStation_Id INT REFERENCES GasStation(GasStation_Id), -- БЕЗ UNIQUE для M:1
+    Stock_Quantity INT NOT NULL DEFAULT 0
+);
+
+-- 8. Роль
+CREATE TABLE [Role] (
+    Role_Id INT PRIMARY KEY IDENTITY,
+    Name_Role NVARCHAR(50) NOT NULL  -- Исправлено: было Name
+);
+
+-- 9. Касса
+CREATE TABLE CashRegister (
+    CashRegister_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(50) NOT NULL,
+    GasStation_Id INT REFERENCES GasStation(GasStation_Id)
+);
+
+-- 10. Работник
+CREATE TABLE Worker (
+    Worker_Id INT PRIMARY KEY IDENTITY,
+    Full_Name NVARCHAR(200) NOT NULL,
+    Phone_Number NVARCHAR(25),
+    Passport_Number NVARCHAR(10),
+    Role_Id INT REFERENCES [Role](Role_Id),
+    CashRegister_Id INT REFERENCES CashRegister(CashRegister_Id),
+    Hire_Date DATE NOT NULL,
+    Login NVARCHAR(50) NOT NULL UNIQUE,
+    Password NVARCHAR(100) NOT NULL
+);
+
+-- 11. Колонка
+CREATE TABLE FuelPump (
+    Pump_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(50) NOT NULL,
+    Status NVARCHAR(20) DEFAULT 'Active',
+    Cistern_Id INT REFERENCES Cistern(Cistern_Id),
+    GasStation_Id INT REFERENCES GasStation(GasStation_Id)
+);
+
+-- 12. Топливный кран
+CREATE TABLE FuelTap (
+    Tap_Id INT PRIMARY KEY IDENTITY,
+    Name NVARCHAR(20) NOT NULL,
+    Max_Flow_Rate DECIMAL(5,2),
+    Pump_Id INT REFERENCES FuelPump(Pump_Id)
+);
+
+-- 13. Чек
+CREATE TABLE Receipt (
+    Receipt_Id INT PRIMARY KEY IDENTITY,
+    Worker_Id INT REFERENCES Worker(Worker_Id),
+    Receipt_Date DATETIME NOT NULL DEFAULT GETDATE(),
+    Total_Amount DECIMAL(10,2),
+    Payment_Type NVARCHAR(20)
+);
+
+-- 14. ЧекТопливо
+CREATE TABLE ReceiptFuel (
+    ReceiptFuel_Id INT PRIMARY KEY IDENTITY,
+    Receipt_Id INT REFERENCES Receipt(Receipt_Id),
+    Fuel_Id INT REFERENCES Fuel(Fuel_Id),
+    Quantity_Liters DECIMAL(10,2) NOT NULL,
+    Price_Per_Liter DECIMAL(10,2) NOT NULL
+);
+
+-- 15. ЧекТовар
+CREATE TABLE ReceiptProduct (
+    ReceiptProduct_Id INT PRIMARY KEY IDENTITY,
+    Receipt_Id INT REFERENCES Receipt(Receipt_Id),
+    Product_Id INT REFERENCES Product(Product_Id),
+    Quantity INT NOT NULL,
+    Price_Per_Unit DECIMAL(10,2) NOT NULL
+);
+
+-- 16. Поставка
+CREATE TABLE Delivery (
+    Delivery_Id INT PRIMARY KEY IDENTITY,
+    Worker_Id INT REFERENCES Worker(Worker_Id),
+    Delivery_Date DATETIME NOT NULL DEFAULT GETDATE(),
+    Status NVARCHAR(20) DEFAULT 'Pending'
+);
+
+-- 17. ПоставкаТовар
+CREATE TABLE DeliveryProduct (
+    DeliveryProduct_Id INT PRIMARY KEY IDENTITY,
+    Delivery_Id INT REFERENCES Delivery(Delivery_Id),
+    Product_Id INT REFERENCES Product(Product_Id),
+    Quantity INT NOT NULL,
+    Price_Per_Unit DECIMAL(10,2) NOT NULL
+);
+GO
+
+-- ============================================
+-- 🗑️ ОЧИСТКА ДАННЫХ (если скрипт запускается повторно)
+-- ============================================
+DELETE FROM ReceiptFuel;
+DELETE FROM ReceiptProduct;
+DELETE FROM DeliveryProduct;
+DELETE FROM Receipt;
+DELETE FROM Delivery;
+DELETE FROM FuelTap;
+DELETE FROM FuelPump;
+DELETE FROM Worker;
+DELETE FROM CashRegister;
+DELETE FROM Product;
+DELETE FROM Cistern;
+DELETE FROM Fuel;
+DELETE FROM GasStation;
+DELETE FROM Category;
+DELETE FROM UnitOfMeasure;
+DELETE FROM [Role];
+DELETE FROM FuelType;
+
+-- Сброс ID
+DBCC CHECKIDENT ('FuelType', RESEED, 1);
+DBCC CHECKIDENT ('Fuel', RESEED, 1);
+DBCC CHECKIDENT ('UnitOfMeasure', RESEED, 1);
+DBCC CHECKIDENT ('Category', RESEED, 1);
+DBCC CHECKIDENT ('GasStation', RESEED, 1);
+DBCC CHECKIDENT ('Cistern', RESEED, 1);
+DBCC CHECKIDENT ('Product', RESEED, 1);
+DBCC CHECKIDENT ('Role', RESEED, 1);
+DBCC CHECKIDENT ('CashRegister', RESEED, 1);
+DBCC CHECKIDENT ('Worker', RESEED, 1);
+DBCC CHECKIDENT ('FuelPump', RESEED, 1);
+DBCC CHECKIDENT ('FuelTap', RESEED, 1);
+DBCC CHECKIDENT ('Receipt', RESEED, 1);
+DBCC CHECKIDENT ('ReceiptFuel', RESEED, 1);
+DBCC CHECKIDENT ('ReceiptProduct', RESEED, 1);
+DBCC CHECKIDENT ('Delivery', RESEED, 1);
+DBCC CHECKIDENT ('DeliveryProduct', RESEED, 1);
+GO
+
+-- ============================================
+-- 📋 ВСТАВКА ТЕСТОВЫХ ДАННЫХ
+-- ============================================
+
+-- Справочники
+INSERT INTO FuelType (Name) VALUES ('Бензин'), ('Дизель'), ('Газ');
+INSERT INTO UnitOfMeasure (Name) VALUES ('литр'), ('штука'), ('кг'), ('упаковка');
+INSERT INTO Category (Name) VALUES ('Автохимия'), ('Запчасти'), ('Продукты'), ('Напитки'), ('Аксессуары');
+INSERT INTO [Role] (Name_Role) VALUES ('Admin'), ('Operator'), ('Cashier'), ('Manager'), ('Attendant');
+
+-- АЗС
+INSERT INTO GasStation (Name, Address, Phone) VALUES 
+('АЗС "Нефть-Ойл"', 'г. Москва, Ленинский пр-т, 45', '+74951234567');
+
+-- Топливо
+INSERT INTO Fuel (Name, FuelType_Id, Octane_Number, Manufacturer) VALUES 
+('АИ-92', 1, '92', 'Лукойл'),
+('АИ-95', 1, '95', 'Лукойл'),
+('АИ-100', 1, '100', 'Газпромнефть'),
+('ДТ', 2, NULL, 'Роснефть'),
+('Пропан', 3, NULL, 'Сибур');
+
+-- Цистерны
+INSERT INTO Cistern (Total_Volume_Liters, Current_Level_Liters, Fuel_Id) VALUES 
+(50000, 42000, 6), (50000, 38500, 7), (30000, 12000, 8), (60000, 51000, 9), (40000, 8000, 10);
+
+-- Товары (8 товаров для 1 АЗС — поэтому UNIQUE убран!)
+INSERT INTO Product (Name, Unit_Id, Category_Id, GasStation_Id, Stock_Quantity) VALUES 
+('Масло моторное 5W-40', 2, 1, 1, 45),
+('Омывайка зимняя -30°', 2, 1, 1, 120),
+('Фильтр воздушный', 2, 1, 1, 18),
+('Вода 0.5л', 2, 4, 1, 200),
+('Кофе в зернах 250г', 2, 4, 1, 35),
+('Перчатки рабочие', 2, 5, 1, 80),
+('Ароматизатор в салон', 2, 5, 1, 65),
+('Снеки ассорти', 2, 3, 1, 90);
+
+-- Кассы
+INSERT INTO CashRegister (Name, GasStation_Id) VALUES 
+('Касса №1', 1), ('Касса №2', 1), ('Касса №3', 1);
+
+-- Работники (добавлены Login и Password, исправлены Role_Id под названия ролей)
+INSERT INTO Worker (Full_Name, Phone_Number, Passport_Number, Role_Id, CashRegister_Id, Hire_Date, Login, Password) VALUES 
+('Иванов Иван Иванович', '+79001112233', '4501123456', 1, 1, '2023-01-15', 'admin', 'admin123'),
+('Петрова Анна Сергеевна', '+79004445566', '4502654321', 3, 1, '2023-03-20', 'petrova', 'cashier456'),
+('Сидоров Петр Алексеевич', '+79007778899', '4503111222', 4, 2, '2022-11-01', 'sidorov', 'manager789'),
+('Козлов Дмитрий Олегович', '+79001239876', '4504333444', 5, NULL, '2024-01-10', 'kozlov', 'attendant000');
+
+-- Колонки
+INSERT INTO FuelPump (Name, Status, Cistern_Id, GasStation_Id) VALUES 
+('Колонка №1', 'Active', 2, 1),
+('Колонка №2', 'Active', 3, 1),
+('Колонка №3', 'Active', 5, 1),
+('Колонка №4', 'Maintenance', 6, 1);
+
+-- Краны
+INSERT INTO FuelTap (Name, Max_Flow_Rate, Pump_Id) VALUES 
+('92-Л', 45.00, 1), ('95-Л', 45.00, 1), ('95-П', 45.00, 2),
+('100-П', 40.00, 2), ('ДТ-Л', 60.00, 3), ('ДТ-П', 60.00, 3), ('Газ', 30.00, 4);
+
+-- Чеки (даты в ISO-формате)
+INSERT INTO Receipt (Worker_Id, Receipt_Date, Total_Amount, Payment_Type) VALUES 
+(2, CAST('2024-04-20T08:15:00' AS DATETIME), 2350.50, 'Card'),
+(2, CAST('2024-04-20T09:42:00' AS DATETIME), 890.00, 'Cash'),
+(3, CAST('2024-04-20T11:30:00' AS DATETIME), 4120.75, 'Card'),
+(2, CAST('2024-04-20T14:05:00' AS DATETIME), 156.00, 'Cash');
+
+-- ЧекТопливо
+INSERT INTO ReceiptFuel (Receipt_Id, Fuel_Id, Quantity_Liters, Price_Per_Liter) VALUES 
+(1, 7, 45.5, 52.30), (1, 9, 20.0, 58.50), (2, 6, 15.0, 48.00),
+(3, 8, 30.0, 65.50), (3, 7, 25.0, 52.30);
+
+-- ЧекТовар
+INSERT INTO ReceiptProduct (Receipt_Id, Product_Id, Quantity, Price_Per_Unit) VALUES 
+(1, 4, 2, 45.00), (1, 7, 1, 120.00), (2, 5, 1, 350.00),
+(2, 8, 3, 85.00), (4, 6, 2, 78.00);
+
+-- Поставки
+INSERT INTO Delivery (Worker_Id, Delivery_Date, Status) VALUES 
+(3, CAST('2024-04-18T10:00:00' AS DATETIME), 'Completed'),
+(3, CAST('2024-04-19T14:30:00' AS DATETIME), 'Completed');
+
+-- ПоставкаТовар
+INSERT INTO DeliveryProduct (Delivery_Id, Product_Id, Quantity, Price_Per_Unit) VALUES 
+(1, 8, 24, 850.00), (1, 9, 50, 120.00), (1, 11, 100, 32.00),
+(2, 12, 20, 280.00), (2, 15, 40, 65.00), (2, 13, 30, 55.00);
+GO
+
+-- ============================================
+-- ✅ ПРОВЕРКА
+-- ============================================
+PRINT '✅ База данных Refill2 создана и заполнена!';
+PRINT '';
+PRINT '🔑 Тестовые аккаунты (Login / Password):';
+PRINT '  1. admin / admin123 (Администратор)';
+PRINT '  2. petrova / cashier456 (Кассир)';
+PRINT '  3. sidorov / manager789 (Менеджер)';
+PRINT '  4. kozlov / attendant000 (Заправщик)';
+PRINT '';
+
+SELECT '📊 Статистика:' AS Info;
+SELECT '  Fuel: ' + CAST(COUNT(*) AS NVARCHAR) FROM Fuel;
+SELECT '  Product: ' + CAST(COUNT(*) AS NVARCHAR) FROM Product;
+SELECT '  Worker: ' + CAST(COUNT(*) AS NVARCHAR) FROM Worker;
+SELECT '  Receipt: ' + CAST(COUNT(*) AS NVARCHAR) FROM Receipt;
