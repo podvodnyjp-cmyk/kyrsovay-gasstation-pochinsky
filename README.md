@@ -52,7 +52,7 @@ Server=(local);Database=StankiDB;Trusted_Connection=True;
 ##Скриншоты
 https://screenshots/Снимок экрана 2026-05-07 133557.png - Товары
 
-https://screenshots/add_defect.png - Топливо
+https://screenshots/Снимок экрана 2026-05-07 133630.png - Топливо
 
 https://screenshots/report_window.png - Для Админа
 
