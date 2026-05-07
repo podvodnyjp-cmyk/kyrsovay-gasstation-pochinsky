@@ -50,11 +50,11 @@ Server=(local);Database=StankiDB;Trusted_Connection=True;
 Для формирования отчёта: в главном меню нажать «Отчёты» → выбрать период (день, неделя, месяц) → нажать «Сформировать» → отчёт (сменная сводка по отпуску топлива и инцидентам) откроется в отдельном окне с возможностью экспорта в Excel
 
 ##Скриншоты
-https://screenshots/main_window.png - 
+https://screenshots/Снимок экрана 2026-05-07 133557.png - Товары
 
-https://screenshots/add_defect.png
+https://screenshots/add_defect.png - Топливо
 
-https://screenshots/report_window.png
+https://screenshots/report_window.png - Для Админа
 
 ##Автор
 Починский Г. Д. , группа 1231, Серпуховский колледж
